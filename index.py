@@ -10,8 +10,8 @@ import time
 import urllib.parse
 import zipfile
 import asyncio
-from typing import List, Optional, Dict
-from concurrent.futures import ProcessPoolExecutor, TimeoutError
+from typing import List, Dict
+from concurrent.futures import ProcessPoolExecutor
 
 from fastapi import FastAPI, Request, Form, File, UploadFile, HTTPException
 from fastapi.responses import StreamingResponse, Response
@@ -23,6 +23,9 @@ app = FastAPI(title="Image Processing API")
 
 # 全局存储 SSE 客户端连接队列: { client_id: asyncio.Queue }
 sse_clients: Dict[str, asyncio.Queue] = {}
+
+# 全局停止标志: { client_id: bool }
+stop_flags: Dict[str, bool] = {}
 
 # 全局进程池：用于隔离 rembg 抠图（CPU/GPU密集型操作），避免阻塞主事件循环
 # Python 的进程隔离对应 Node.js 的 child_process.fork
@@ -107,6 +110,25 @@ async def sse_progress(request: Request, clientId: str = "default"):
 
 
 # ----------------------------------------------------------------------
+# 停止渲染接口
+# ----------------------------------------------------------------------
+@app.post("/api/stop-render")
+async def stop_render(request: Request):
+    try:
+        body = await request.json()
+        client_id = body.get("clientId")
+        if client_id:
+            stop_flags[client_id] = True
+            print(f"[日志] 收到客户端 {client_id} 的停止请求")
+            return {"success": True, "message": "已发送停止信号"}
+        else:
+            raise HTTPException(status_code=400, detail="缺少 clientId 参数")
+    except Exception as e:
+        print(f"[错误] 停止渲染请求失败: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ----------------------------------------------------------------------
 # 2. 综合图像处理接口
 # ----------------------------------------------------------------------
 @app.post("/api/remove-bg-batch")
@@ -117,7 +139,7 @@ async def remove_bg_batch(
     removeWatermark: str = Form("false"),
     format: str = Form("png"),
     quality: int = Form(100),
-    scale: int = Form(100)
+    scale: str = Form("100")
 ):
     try:
         if not images or len(images) == 0:
@@ -129,14 +151,36 @@ async def remove_bg_batch(
         target_format = format.lower()
         total_files = len(images)
 
+        # 解析 scale 参数：支持百分比（如 "80"）或像素尺寸（如 "1920x1080"）
+        scale_value = 100
+        scale_width = None
+        scale_height = None
+        if 'x' in scale:
+            parts = scale.split('x')
+            if parts[0] and parts[0] != 'auto':
+                scale_width = int(parts[0])
+            if len(parts) > 1 and parts[1] and parts[1] != 'auto':
+                scale_height = int(parts[1])
+        else:
+            scale_value = int(scale) if scale.isdigit() else 100
+
         print(f"[日志] 收到 {total_files} 张图片任务 | 智能抠图: {is_remove_bg} | 去除水印: {is_remove_watermark} | 目标格式: {target_format} | 压缩质量: {quality}% | 缩放比例: {scale}% | 客户端: {clientId}")
 
         await send_progress(clientId, 0, total_files, "开始处理...")
+
+        # 初始化该客户端的停止标志
+        stop_flags[clientId] = False
 
         processed_results = []
 
         # 串行队列处理
         for index, file in enumerate(images):
+            # 检查停止标志
+            if stop_flags.get(clientId, False):
+                print(f"[日志] 客户端 {clientId} 请求停止，已处理 {index} 张后终止")
+                await send_progress(clientId, index, total_files, f"已停止渲染，已处理 {index} 张")
+                break
+
             # Python 的 FastAPI/Starlette 会自动对文件名编码进行 UTF-8 纠正
             safe_file_name = file.filename or f"image_{index + 1}.png"
 
@@ -150,16 +194,43 @@ async def remove_bg_batch(
                 if is_remove_watermark:
                     input_bytes = _remove_watermark_task(input_bytes)
 
+                # 检查停止标志（在水印处理后）
+                if stop_flags.get(clientId, False):
+                    print(f"[日志] 客户端 {clientId} 请求停止，已处理 {index} 张后终止")
+                    await send_progress(clientId, index, total_files, f"已停止渲染，已处理 {index} 张")
+                    break
+
                 # 2. AI 背景擦除 (通过 ProcessPoolExecutor 隔离执行)
                 if is_remove_bg:
                     input_bytes = await run_remove_bg_in_subprocess(input_bytes)
 
+                # 检查停止标志（在抠图处理后）
+                if stop_flags.get(clientId, False):
+                    print(f"[日志] 客户端 {clientId} 请求停止，已处理 {index} 张后终止")
+                    await send_progress(clientId, index, total_files, f"已停止渲染，已处理 {index} 张")
+                    break
+
                 # 3. Pillow 图像尺寸缩放与格式转换
                 with Image.open(io.BytesIO(input_bytes)) as img:
-                    # 缩放处理
-                    if scale < 100:
-                        new_width = max(1, int(img.width * (scale / 100.0)))
-                        new_height = max(1, int(img.height * (scale / 100.0)))
+                    # 缩放处理：支持百分比和像素尺寸
+                    if scale_width is not None or scale_height is not None:
+                        # 像素尺寸模式
+                        orig_width, orig_height = img.size
+                        if scale_width and scale_height:
+                            new_width, new_height = scale_width, scale_height
+                        elif scale_width:
+                            # 按宽度等比缩放
+                            ratio = scale_width / orig_width
+                            new_width, new_height = scale_width, max(1, int(orig_height * ratio))
+                        else:
+                            # 按高度等比缩放
+                            ratio = scale_height / orig_height
+                            new_width, new_height = max(1, int(orig_width * ratio)), scale_height
+                        img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
+                    elif scale_value < 100:
+                        # 百分比模式
+                        new_width = max(1, int(img.width * (scale_value / 100.0)))
+                        new_height = max(1, int(img.height * (scale_value / 100.0)))
                         img = img.resize((new_width, new_height), Image.Resampling.LANCZOS)
 
                     output_io = io.BytesIO()
@@ -221,6 +292,9 @@ async def remove_bg_batch(
             zip_buffer.seek(0)
             zip_bytes = zip_buffer.getvalue()
 
+            # 清理停止标志
+            stop_flags[clientId] = False
+
             encoded_zip_name = urllib.parse.quote(f"{len(processed_results)}个图片.zip")
             headers = {
                 "X-Processed-Count": str(len(processed_results)),
@@ -229,6 +303,9 @@ async def remove_bg_batch(
             return Response(content=zip_bytes, media_type="application/zip", headers=headers)
 
         else:
+            # 清理停止标志
+            stop_flags[clientId] = False
+
             # 单张图直接返回流文件
             single = processed_results[0]
             encoded_name = urllib.parse.quote(single["output_name"])
@@ -239,6 +316,9 @@ async def remove_bg_batch(
 
     except Exception as error:
         print(f"[报错] 接口整体处理异常: {error}")
+        # 清理停止标志
+        if clientId in stop_flags:
+            stop_flags[clientId] = False
         raise HTTPException(status_code=500, detail="后端处理过程出错，请重试")
 
 
