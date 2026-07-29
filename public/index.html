@@ -4,7 +4,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>图像高精处理 - 极简图像工作站</title>
+  <title>吴文龙的图片处理工具</title>
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -100,20 +100,45 @@
     // ================= 1. React Context 状态管理 =================
     const ConfigContext = React.createContext(null);
 
+    const CONFIG_STORAGE_KEY = 'img_config_v1';
+    const DEFAULT_CONFIG = {
+      enableRemoveBg: true,
+      enableRemoveWatermark: false,
+      targetFormat: 'png',
+      qualityType: 'preset',
+      qualityPreset: '90',
+      customQuality: '85',
+      scaleType: 'preset',
+      scalePreset: '100',
+      customScalePercent: '80',
+      customWidth: '',
+      customHeight: '',
+    };
+
+    function loadConfigFromStorage() {
+      try {
+        const raw = localStorage.getItem(CONFIG_STORAGE_KEY);
+        if (!raw) return { ...DEFAULT_CONFIG };
+        const parsed = JSON.parse(raw);
+        // 合并以保证新增的默认字段也存在
+        return { ...DEFAULT_CONFIG, ...parsed };
+      } catch (e) {
+        console.warn('读取本地配置失败:', e);
+        return { ...DEFAULT_CONFIG };
+      }
+    }
+
     function ConfigProvider({ children }) {
-      const [config, setConfig] = useState({
-        enableRemoveBg: true,
-        enableRemoveWatermark: false,
-        targetFormat: 'png',
-        qualityType: 'preset',
-        qualityPreset: '90',
-        customQuality: '85',
-        scaleType: 'preset',
-        scalePreset: '100',
-        customScalePercent: '80',
-        customWidth: '',
-        customHeight: '',
-      });
+      const [config, setConfig] = useState(loadConfigFromStorage);
+
+      // 配置变化时写入本地存储
+      useEffect(() => {
+        try {
+          localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+        } catch (e) {
+          console.warn('写入本地配置失败:', e);
+        }
+      }, [config]);
 
       const setConfigValue = useCallback((key, value) => {
         setConfig(prev => ({ ...prev, [key]: value }));
@@ -567,13 +592,13 @@
                 {/* 抠图 & 去水印集成卡片 */}
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
-                    <div className=" font-medium text-[#86868b] uppercase tracking-wider mb-3">核心智能引擎</div>
+                    <div className=" font-medium text-[#86868b] uppercase tracking-wider mb-3">智能擦除</div>
                     <div className="space-y-2.5">
                       <div
                         onClick={config.toggleRemoveBg}
                         className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer apple-transition ${config.enableRemoveBg ? 'bg-[#f5f5f7]' : 'hover:bg-[#f5f5f7]/50'}`}
                       >
-                        <span className="text-sm font-medium text-[#1d1d1f]">AI 背景消除</span>
+                        <span className="text-sm font-medium text-[#1d1d1f]">去背景</span>
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center apple-transition ${config.enableRemoveBg ? 'bg-[#0071e3] text-white' : 'border border-[#d2d2d7]'}`}>
                           {config.enableRemoveBg && <Icon name="check" className="w-3 h-3 stroke-[2.5]" />}
                         </div>
@@ -583,7 +608,7 @@
                         onClick={config.toggleRemoveWatermark}
                         className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer apple-transition ${config.enableRemoveWatermark ? 'bg-[#f5f5f7]' : 'hover:bg-[#f5f5f7]/50'}`}
                       >
-                        <span className="text-sm font-medium text-[#1d1d1f]">智能元素擦除</span>
+                        <span className="text-sm font-medium text-[#1d1d1f]">去豆包水印</span>
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center apple-transition ${config.enableRemoveWatermark ? 'bg-[#0071e3] text-white' : 'border border-[#d2d2d7]'}`}>
                           {config.enableRemoveWatermark && <Icon name="check" className="w-3 h-3 stroke-[2.5]" />}
                         </div>
@@ -617,7 +642,7 @@
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">压缩采样</span>
+                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">图片压缩</span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => setConfig('qualityType', 'preset')}
@@ -671,7 +696,7 @@
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">输出缩放</span>
+                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">图片缩放</span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => setConfig('scaleType', 'preset')}
