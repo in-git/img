@@ -424,11 +424,12 @@
 
           if (contentType.includes('application/zip')) {
             // 多张:打包 ZIP 自动下载
+            const processedCount = parseInt(response.headers.get('x-processed-count')) || waitingItems.length;
             const blob = await response.blob();
             const downloadUrl = URL.createObjectURL(blob);
             const a = document.createElement('a');
             a.href = downloadUrl;
-            a.download = `${waitingItems.length}个图片.zip`;
+            a.download = `${processedCount}个图片.zip`;
             document.body.appendChild(a);
             a.click();
             a.remove();
@@ -440,7 +441,7 @@
               ),
             );
             // 显示成功弹窗(用户点击确定后清空列表)
-            setSuccessModalData({ count: waitingItems.length, isZip: true });
+            setSuccessModalData({ count: processedCount, isZip: true });
             setShowSuccessModal(true);
           } else if (contentType.startsWith('image/')) {
             // 单张:后端直接返回二进制流，用 blob URL 预览并自动下载

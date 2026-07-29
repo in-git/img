@@ -204,6 +204,7 @@ router.post('/remove-bg-batch', upload.array('images', 20), async (req, res) => 
             const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
 
             res.setHeader('Content-Type', 'application/zip');
+            res.setHeader('X-Processed-Count', processedResults.length);
             const encodedZipName = encodeURIComponent(`${processedResults.length}个图片.zip`);
             res.setHeader('Content-Disposition', `attachment; filename="${encodedZipName}"; filename*=UTF-8''${encodedZipName}`);
             return res.send(zipBuffer);
