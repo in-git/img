@@ -1,0 +1,1120 @@
+<!doctype html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>吴文龙的批量抠图</title>
+
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Lucide 图标库 CDN -->
+  <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+  <!-- JSZip & FileSaver -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
+  <!-- SweetAlert2 -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/sweetalert2/11.10.3/sweetalert2.all.min.js"></script>
+  <!-- React & ReactDOM -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Babel 在线解析 JSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <style>
+    /* PNG 棋盘透明背景 */
+    .bg-checkerboard {
+      background-color: #f8fafc;
+      background-image:
+        linear-gradient(45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(-45deg, #e2e8f0 25%, transparent 25%),
+        linear-gradient(45deg, transparent 75%, #e2e8f0 75%),
+        linear-gradient(-45deg, transparent 75%, #e2e8f0 75%);
+      background-size: 16px 16px;
+      background-position: 0 0, 0 8px, 8px -8px, -8px 0px;
+    }
+
+    /* 淡入淡出与微位移动画 */
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(-4px);
+      }
+
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .animate-select-in {
+      animation: fadeIn 0.15s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+    }
+
+    /* 隐藏 Chrome/Safari/Edge 的 number 输入框上下箭头 */
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+
+    /* 隐藏 Firefox 的 number 输入框上下箭头 */
+    input[type=number] {
+      -moz-appearance: textfield;
+    }
+
+    /* 图片列表区自定义滚动条 (Apple 风格细滚动条) */
+    .custom-scroll::-webkit-scrollbar {
+      width: 8px;
+      height: 8px;
+    }
+
+    .custom-scroll::-webkit-scrollbar-track {
+      background: transparent;
+    }
+
+    .custom-scroll::-webkit-scrollbar-thumb {
+      background-color: rgba(100, 116, 139, 0.35);
+      border-radius: 9999px;
+    }
+
+    .custom-scroll::-webkit-scrollbar-thumb:hover {
+      background-color: rgba(100, 116, 139, 0.55);
+    }
+
+    .custom-scroll {
+      scrollbar-width: thin;
+      scrollbar-color: rgba(100, 116, 139, 0.35) transparent;
+    }
+  </style>
+</head>
+
+<body
+  class="bg-slate-50 min-h-screen text-slate-950 font-sans antialiased selection:bg-slate-900 selection:text-slate-50 flex flex-col justify-between">
+  <div id="root" class="flex-1"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useRef, useCallback } = React;
+
+    const STORAGE_KEY = 'IMAGE_PROCESSOR_CONFIG_V5';
+
+    // ================= 1. 防 removeChild 报错的安全 Icon 封装组件 =================
+    const Icon = ({ name, className = "w-4 h-4" }) => {
+      const spanRef = useRef(null);
+
+      useEffect(() => {
+        if (window.lucide && spanRef.current) {
+          spanRef.current.innerHTML = `<i data-lucide="${name}" class="${className}"></i>`;
+          window.lucide.createIcons({
+            root: spanRef.current
+          });
+        }
+      }, [name, className]);
+
+      return <span ref={spanRef} className="inline-flex items-center justify-center pointer-events-none"></span>;
+    };
+
+    // 递归读取 Entry（支持文件夹拖入提取所有图片）
+    const traverseFileTree = async (entry) => {
+      return new Promise((resolve) => {
+        if (entry.isFile) {
+          entry.file((file) => {
+            if (file && (file.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|avif|bmp|ico|gif|svg)$/i.test(file.name))) {
+              resolve([file]);
+            } else {
+              resolve([]);
+            }
+          }, () => resolve([]));
+        } else if (entry.isDirectory) {
+          const dirReader = entry.createReader();
+          let allFiles = [];
+
+          const readEntries = () => {
+            dirReader.readEntries(async (entries) => {
+              if (entries.length === 0) {
+                resolve(allFiles);
+              } else {
+                const entryPromises = entries.map((e) => traverseFileTree(e));
+                const results = await Promise.all(entryPromises);
+                results.forEach((files) => {
+                  allFiles = allFiles.concat(files);
+                });
+                readEntries();
+              }
+            }, () => resolve(allFiles));
+          };
+
+          readEntries();
+        } else {
+          resolve([]);
+        }
+      });
+    };
+
+    // ================= 2. App 主流程组件 =================
+    function App() {
+      const [fileList, setFileList] = useState([]);
+      const [isDragging, setIsDragging] = useState(false);
+      const [isProcessing, setIsProcessing] = useState(false);
+      const fileInputRef = useRef(null);
+      const folderInputRef = useRef(null);
+      const dragCounter = useRef(0);
+
+      // 从 localStorage 读取配置状态，若无则使用默认值
+      const savedConfig = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+
+      const [enableRemoveBg, setEnableRemoveBg] = useState(savedConfig.enableRemoveBg ?? true);
+      const [targetFormat, setTargetFormat] = useState(savedConfig.targetFormat || 'png');
+
+      // 图像质量 Tab 设置: qualityType ('preset' | 'custom')
+      const [qualityType, setQualityType] = useState(savedConfig.qualityType || 'preset');
+      const [qualityPreset, setQualityPreset] = useState(savedConfig.qualityPreset || '75');
+      const [customQuality, setCustomQuality] = useState(savedConfig.customQuality || '85');
+
+      // 尺寸缩放 Tab 设置: scaleType ('preset' | 'custom_percent' | 'custom_px')
+      const [scaleType, setScaleType] = useState(savedConfig.scaleType || 'preset');
+      const [scalePreset, setScalePreset] = useState(savedConfig.scalePreset || '100');
+      const [customScalePercent, setCustomScalePercent] = useState(savedConfig.customScalePercent || '80');
+      const [customWidth, setCustomWidth] = useState(savedConfig.customWidth || '');
+      const [customHeight, setCustomHeight] = useState(savedConfig.customHeight || '');
+
+      // 处理完成弹窗状态
+      const [showSuccessModal, setShowSuccessModal] = useState(false);
+      const [successModalData, setSuccessModalData] = useState({ count: 0, isZip: false });
+
+      // 处理进度状态
+      const [progressInfo, setProgressInfo] = useState({ current: 0, total: 0, message: '' });
+
+      // 持久化保存设置
+      useEffect(() => {
+        localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            enableRemoveBg,
+            targetFormat,
+            qualityType,
+            qualityPreset,
+            customQuality,
+            scaleType,
+            scalePreset,
+            customScalePercent,
+            customWidth,
+            customHeight,
+          })
+        );
+      }, [
+        enableRemoveBg,
+        targetFormat,
+        qualityType,
+        qualityPreset,
+        customQuality,
+        scaleType,
+        scalePreset,
+        customScalePercent,
+        customWidth,
+        customHeight
+      ]);
+
+      // 支持的主流图片格式列表
+      const formatList = [
+        { label: 'PNG', value: 'png' },
+        { label: 'JPG', value: 'jpg' },
+        { label: 'WEBP', value: 'webp' },
+        { label: 'AVIF', value: 'avif' },
+        { label: 'BMP', value: 'bmp' },
+        { label: 'ICO', value: 'ico' },
+      ];
+
+      const formatFileSize = (bytes) => {
+        if (!bytes || bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+      };
+
+      const handleAddFiles = useCallback((newFiles) => {
+        const validImages = Array.from(newFiles).filter((f) =>
+          f.type.startsWith('image/') || /\.(jpg|jpeg|png|webp|avif|bmp|ico|gif|svg)$/i.test(f.name)
+        );
+        if (validImages.length === 0) return;
+
+        const newItems = validImages.map((file) => ({
+          id: Math.random().toString(36).substr(2, 9) + '-' + Date.now(),
+          file: file,
+          originalPreview: URL.createObjectURL(file),
+          processedUrl: null,
+          status: 'waiting',
+          errorMessage: '',
+        }));
+
+        setFileList((prev) => [...prev, ...newItems]);
+      }, []);
+
+      useEffect(() => {
+        const handleDragEnter = (e) => {
+          e.preventDefault();
+          dragCounter.current++;
+          if (e.dataTransfer.items && e.dataTransfer.items.length > 0) {
+            setIsDragging(true);
+          }
+        };
+
+        const handleDragLeave = (e) => {
+          e.preventDefault();
+          dragCounter.current--;
+          if (dragCounter.current === 0) {
+            setIsDragging(false);
+          }
+        };
+
+        const handleDragOver = (e) => e.preventDefault();
+
+        const handleDrop = async (e) => {
+          e.preventDefault();
+          setIsDragging(false);
+          dragCounter.current = 0;
+
+          const items = e.dataTransfer.items;
+          if (items && items.length > 0) {
+            const entryPromises = [];
+            for (let i = 0; i < items.length; i++) {
+              const item = items[i];
+              if (item.webkitGetAsEntry) {
+                const entry = item.webkitGetAsEntry();
+                if (entry) {
+                  entryPromises.push(traverseFileTree(entry));
+                }
+              }
+            }
+
+            if (entryPromises.length > 0) {
+              const results = await Promise.all(entryPromises);
+              const extractedFiles = results.flat();
+              if (extractedFiles.length > 0) {
+                handleAddFiles(extractedFiles);
+                return;
+              }
+            }
+          }
+
+          // Fallback if webkitGetAsEntry is unavailable
+          if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
+            handleAddFiles(e.dataTransfer.files);
+          }
+        };
+
+        window.addEventListener('dragenter', handleDragEnter);
+        window.addEventListener('dragleave', handleDragLeave);
+        window.addEventListener('dragover', handleDragOver);
+        window.addEventListener('drop', handleDrop);
+
+        return () => {
+          window.removeEventListener('dragenter', handleDragEnter);
+          window.removeEventListener('dragleave', handleDragLeave);
+          window.removeEventListener('dragover', handleDragOver);
+          window.removeEventListener('drop', handleDrop);
+        };
+      }, [handleAddFiles]);
+
+      const handleFileSelect = (e) => {
+        if (e.target.files && e.target.files.length > 0) {
+          handleAddFiles(e.target.files);
+          e.target.value = '';
+        }
+      };
+
+      const handleRemoveItem = (id) => {
+        setFileList((prev) => {
+          const target = prev.find((item) => item.id === id);
+          if (target && target.originalPreview) {
+            URL.revokeObjectURL(target.originalPreview);
+          }
+          return prev.filter((item) => item.id !== id);
+        });
+      };
+
+      const handleClearAll = () => {
+        fileList.forEach((item) => {
+          if (item.originalPreview) URL.revokeObjectURL(item.originalPreview);
+        });
+        setFileList([]);
+      };
+
+      // 计算最终发送给后端的 quality 参数
+      const getFinalQuality = () => {
+        if (qualityType === 'custom') {
+          const num = parseInt(customQuality, 10);
+          if (isNaN(num)) return '90';
+          return Math.max(1, Math.min(100, num)).toString();
+        }
+        return qualityPreset;
+      };
+
+      // 计算最终发送给后端的 scale 参数
+      const getFinalScale = () => {
+        if (scaleType === 'custom_percent') {
+          const num = parseInt(customScalePercent, 10);
+          if (isNaN(num)) return '100';
+          return Math.max(1, Math.min(500, num)).toString();
+        } else if (scaleType === 'custom_px') {
+          const w = customWidth.trim();
+          const h = customHeight.trim();
+          if (w || h) {
+            return `${w || 'auto'}x${h || 'auto'}`;
+          }
+          return '100';
+        }
+        return scalePreset;
+      };
+
+      const handleStartBatchProcess = async () => {
+        const waitingItems = fileList.filter(
+          (item) => item.status === 'waiting' || item.status === 'error',
+        );
+        if (waitingItems.length === 0) return;
+
+        setIsProcessing(true);
+
+        // 生成唯一客户端ID用于SSE连接
+        const clientId = 'client_' + Date.now();
+
+        // 建立SSE连接监听进度
+        const eventSource = new EventSource(`/api/progress?clientId=${clientId}`);
+        eventSource.onmessage = (event) => {
+          try {
+            const data = JSON.parse(event.data);
+            setProgressInfo({
+              current: data.current,
+              total: data.total,
+              message: data.message
+            });
+          } catch (e) {
+            console.error('解析进度数据失败:', e);
+          }
+        };
+        eventSource.onerror = () => {
+          eventSource.close();
+        };
+
+        const waitingIds = new Set(waitingItems.map((i) => i.id));
+        setFileList((prev) =>
+          prev.map((item) =>
+            waitingIds.has(item.id)
+              ? { ...item, status: 'processing', errorMessage: '' }
+              : item,
+          ),
+        );
+
+        const formData = new FormData();
+        waitingItems.forEach((item) => formData.append('images', item.file));
+        formData.append('removeBg', enableRemoveBg ? 'true' : 'false');
+        formData.append('format', targetFormat);
+        formData.append('quality', getFinalQuality());
+        formData.append('scale', getFinalScale());
+        formData.append('clientId', clientId);
+
+        try {
+          const response = await fetch('/api/remove-bg-batch', {
+            method: 'POST',
+            body: formData,
+          });
+
+          const contentType = response.headers.get('content-type') || '';
+
+          if (contentType.includes('application/zip')) {
+            // 多张:打包 ZIP 自动下载
+            const blob = await response.blob();
+            const downloadUrl = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.download = `${waitingItems.length}个图片.zip`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(downloadUrl);
+
+            setFileList((prev) =>
+              prev.map((item) =>
+                waitingIds.has(item.id) ? { ...item, status: 'done' } : item,
+              ),
+            );
+            // 显示成功弹窗(用户点击确定后清空列表)
+            setSuccessModalData({ count: waitingItems.length, isZip: true });
+            setShowSuccessModal(true);
+          } else if (contentType.startsWith('image/')) {
+            // 单张:后端直接返回二进制流，用 blob URL 预览并自动下载
+            const blob = await response.blob();
+            const previewUrl = URL.createObjectURL(blob);
+
+            // 自动下载
+            const fileName = `${waitingItems[0].file.name.substring(0, waitingItems[0].file.name.lastIndexOf('.')) || waitingItems[0].file.name}.${targetFormat}`;
+            const a = document.createElement('a');
+            a.href = previewUrl;
+            a.download = fileName;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            setFileList((prev) =>
+              prev.map((item) =>
+                waitingIds.has(item.id)
+                  ? { ...item, processedUrl: previewUrl, status: 'done' }
+                  : item,
+              ),
+            );
+            // 显示成功弹窗(用户点击确定后清空列表)
+            setSuccessModalData({ count: 1, isZip: false });
+            setShowSuccessModal(true);
+          } else {
+            // 错误响应(JSON)
+            const resData = await response.json();
+            const errMsg = resData.error || '服务器处理错误';
+            setFileList((prev) =>
+              prev.map((item) =>
+                waitingIds.has(item.id)
+                  ? { ...item, status: 'error', errorMessage: errMsg }
+                  : item,
+              ),
+            );
+            alert('处理错误: ' + errMsg);
+          }
+        } catch (err) {
+          console.error('网络通讯失败:', err);
+          setFileList((prev) =>
+            prev.map((item) =>
+              waitingIds.has(item.id)
+                ? { ...item, status: 'error', errorMessage: '服务器连接断开' }
+                : item,
+            ),
+          );
+          alert('无法连接后端服务，请确认后端进程已启动。');
+        } finally {
+          eventSource.close();
+          setIsProcessing(false);
+          setProgressInfo({ current: 0, total: 0, message: '' });
+        }
+      };
+
+      const handleDownloadAllZipFrontend = async () => {
+        const zip = new JSZip();
+        const tasks = [];
+
+        fileList.forEach((item) => {
+          if (item.processedUrl) {
+            const fileName = `processed_${item.file.name.substring(0, item.file.name.lastIndexOf('.')) || item.file.name}.${targetFormat}`;
+            // processedUrl 现为 blob URL，需 fetch 取回二进制再写入 ZIP
+            tasks.push(
+              fetch(item.processedUrl)
+                .then((r) => r.blob())
+                .then((blob) => zip.file(fileName, blob))
+            );
+          }
+        });
+
+        if (tasks.length > 0) {
+          await Promise.all(tasks);
+          const content = await zip.generateAsync({ type: 'blob' });
+          saveAs(content, `${tasks.length}个图片.zip`);
+        }
+      };
+
+      const totalCount = fileList.length;
+      const waitingCount = fileList.filter((i) => i.status === 'waiting' || i.status === 'error').length;
+      const doneCount = fileList.filter((i) => i.status === 'done').length;
+
+      return (
+        <div className="relative min-h-screen py-10 px-4 sm:px-6 lg:px-8 text-base pb-20">
+          {/* 处理完成成功弹窗 */}
+          {showSuccessModal && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center">
+              {/* 遮罩层 */}
+              <div
+                className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+                onClick={() => setShowSuccessModal(false)}
+              />
+              {/* 弹窗主体 */}
+              <div className="relative bg-white rounded-2xl shadow-2xl p-8 max-w-sm w-full mx-4 animate-[fadeIn_0.2s_ease-out]">
+                <div className="text-center">
+                  <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <Icon name="check-circle" className="w-8 h-8 text-emerald-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-slate-900 mb-2">处理完成</h3>
+                  <p className="text-slate-600 mb-6">
+                    {successModalData.isZip
+                      ? `${successModalData.count} 个图片已打包下载`
+                      : '图片已处理完成并下载'}
+                  </p>
+                  <button
+                    onClick={() => {
+                      setShowSuccessModal(false);
+                      // 确认后清空列表
+                      setFileList([]);
+                    }}
+                    className="w-full py-2.5 px-4 bg-slate-900 text-white rounded-lg font-semibold hover:bg-slate-800 transition-colors"
+                  >
+                    确定
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* shadcn 风格全屏拖拽 Overlay */}
+          <div
+            className={`fixed inset-0 bg-slate-900/80 backdrop-blur-md z-50 flex flex-col items-center justify-center text-slate-50 transition-all duration-200 pointer-events-none ${isDragging ? 'opacity-100 scale-100' : 'opacity-0 scale-95'
+              }`}
+          >
+            <div className="p-6 rounded-full bg-slate-800 border border-slate-700 mb-4 animate-bounce">
+              <Icon name="folder-up" className="w-12 h-12 text-slate-100" />
+            </div>
+            <p className="text-2xl font-bold tracking-tight">释放鼠标，批量导入图片或整个文件夹</p>
+            <p className="text-slate-400 text-base mt-2">将自动递归提取文件夹内的所有图片文件</p>
+          </div>
+
+          <div className="max-w-[1800px] mx-auto space-y-6">
+            {/* Banner 顶部导航栏 */}
+            <header className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-hidden">
+              <div className="flex items-center justify-between px-6 py-3">
+                {/* 左侧 Logo */}
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+                    <Icon name="image" className="w-5 h-5 text-white" />
+                  </div>
+                  <span className="text-lg font-bold text-slate-900">批量抠图</span>
+                </div>
+
+                {/* 右侧导航 */}
+                <nav className="flex items-center gap-6">
+                  <a href="http://www.mx2d.cn" target="_blank" className="text-sm font-medium text-slate-600 hover:text-blue-600 transition-colors">
+                    吴文龙的互联空间
+                  </a>
+                </nav>
+              </div>
+            </header>
+
+            {/* 核心配置区域 (一排 4 个卡片平铺布局) */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+
+              {/* 卡片 1: AI 抠图 */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
+                <label className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Icon name="scissors" className="w-4 h-4 text-blue-600" />
+                  AI 抠图
+                </label>
+                <div className="pt-2">
+                  <div
+                    onClick={() => setEnableRemoveBg(!enableRemoveBg)}
+                    className={`flex h-10 w-full cursor-pointer select-none items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-medium transition ${enableRemoveBg
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${enableRemoveBg
+                          ? 'border-white bg-white text-slate-900'
+                          : 'border-slate-300 bg-white'
+                          }`}
+                      >
+                        {enableRemoveBg && <Icon name="check" className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="font-semibold">抠除背景</span>
+                    </div>
+                    <span className={enableRemoveBg ? 'text-slate-300' : 'text-slate-400'}>
+                      {enableRemoveBg ? '开启' : '关闭'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 卡片 2: 导出格式 */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
+                <label className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Icon name="refresh-cw" className="w-4 h-4 text-blue-600" />
+                  导出格式
+                </label>
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-1 pt-2">
+                  {formatList.map((item) => {
+                    const isSelected = targetFormat === item.value;
+                    return (
+                      <label
+                        key={item.value}
+                        onClick={() => setTargetFormat(item.value)}
+                        className={`relative flex cursor-pointer select-none items-center justify-center rounded-md border py-1.5 text-center transition ${isSelected
+                          ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                          : 'border-slate-200 bg-slate-50/50 text-slate-700 hover:border-slate-300 hover:bg-slate-100'
+                          }`}
+                      >
+                        <input
+                          type="radio"
+                          name="targetFormat"
+                          value={item.value}
+                          checked={isSelected}
+                          onChange={() => { }}
+                          className="sr-only"
+                        />
+                        <span className="text-sm font-bold uppercase">{item.label}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 卡片 3: 图像质量 (做成 2 个选项卡 Tabs) */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <label className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Icon name="archive" className="w-4 h-4 text-blue-600" />
+                    图像质量
+                  </label>
+                  {/* Tab 选择器 */}
+                  <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setQualityType('preset')}
+                      className={`rounded-md px-2 py-1 transition ${qualityType === 'preset'
+                        ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                        : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                      快捷选择
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setQualityType('custom')}
+                      className={`rounded-md px-2 py-1 transition ${qualityType === 'custom'
+                        ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                        : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                      自定义
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tab 内容展示 */}
+                <div className="pt-2">
+                  {qualityType === 'preset' ? (
+                    <div className="grid grid-cols-4 gap-1 animate-select-in">
+                      {[
+                        { label: '无损', value: '100' },
+                        { label: '90%', value: '90' },
+                        { label: '75%', value: '75' },
+                        { label: '60%', value: '60' },
+                      ].map((item) => {
+                        const isSelected = qualityPreset === item.value;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => setQualityPreset(item.value)}
+                            className={`rounded-md py-1.5 text-sm font-medium transition ${isSelected
+                              ? 'bg-slate-900 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    <div className="relative w-full animate-select-in">
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={customQuality}
+                        onChange={(e) => setCustomQuality(e.target.value)}
+                        placeholder="输入质量 1-100"
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-8 text-sm font-semibold text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      />
+                      <span className="absolute right-2.5 top-2 text-sm text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 卡片 4: 尺寸缩放 (做成 3 个选项卡 Tabs) */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                  <label className="text-base font-bold text-slate-900 flex items-center gap-2">
+                    <Icon name="maximize-2" className="w-4 h-4 text-blue-600" />
+                    尺寸缩放
+                  </label>
+                  {/* Tab 选择器 */}
+                  <div className="flex rounded-lg bg-slate-100 p-0.5 text-xs font-medium">
+                    <button
+                      type="button"
+                      onClick={() => setScaleType('preset')}
+                      className={`rounded-md px-2 py-1 transition ${scaleType === 'preset'
+                        ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                        : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                      快捷选择
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScaleType('custom_percent')}
+                      className={`rounded-md px-2 py-1 transition ${scaleType === 'custom_percent'
+                        ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                        : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                      按比例
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setScaleType('custom_px')}
+                      className={`rounded-md px-2 py-1 transition ${scaleType === 'custom_px'
+                        ? 'bg-white text-slate-900 shadow-sm font-semibold'
+                        : 'text-slate-500 hover:text-slate-900'
+                        }`}
+                    >
+                      固定像素
+                    </button>
+                  </div>
+                </div>
+
+                {/* Tab 内容展示 */}
+                <div className="pt-2">
+                  {scaleType === 'preset' && (
+                    <div className="grid grid-cols-4 gap-1 animate-select-in">
+                      {[
+                        { label: '原大', value: '100' },
+                        { label: '75%', value: '75' },
+                        { label: '50%', value: '50' },
+                        { label: '25%', value: '25' },
+                      ].map((item) => {
+                        const isSelected = scalePreset === item.value;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => setScalePreset(item.value)}
+                            className={`rounded-md py-1.5 text-sm font-medium transition ${isSelected
+                              ? 'bg-slate-900 text-white shadow-sm'
+                              : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                              }`}
+                          >
+                            {item.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {scaleType === 'custom_percent' && (
+                    <div className="relative w-full animate-select-in">
+                      <input
+                        type="number"
+                        min="1"
+                        max="500"
+                        value={customScalePercent}
+                        onChange={(e) => setCustomScalePercent(e.target.value)}
+                        placeholder="缩放比例 1-500"
+                        className="w-full rounded-md border border-slate-300 bg-white px-3 py-1.5 pr-8 text-sm font-semibold text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      />
+                      <span className="absolute right-2.5 top-2 text-sm text-slate-400 pointer-events-none">%</span>
+                    </div>
+                  )}
+
+                  {scaleType === 'custom_px' && (
+                    <div className="flex items-center gap-1.5 animate-select-in">
+                      <input
+                        type="number"
+                        value={customWidth}
+                        onChange={(e) => setCustomWidth(e.target.value)}
+                        placeholder="宽度 px"
+                        className="w-1/2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      />
+                      <span className="text-slate-300 text-sm font-bold">×</span>
+                      <input
+                        type="number"
+                        value={customHeight}
+                        onChange={(e) => setCustomHeight(e.target.value)}
+                        placeholder="高度 px"
+                        className="w-1/2 rounded-md border border-slate-300 bg-white px-2.5 py-1.5 text-sm font-semibold text-slate-900 focus:border-slate-900 focus:outline-none focus:ring-1 focus:ring-slate-900"
+                      />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* 上传 & 文件管理辅助栏 (已把“一键处理”按钮并排放置在右侧) */}
+            <div className="rounded-xl border border-slate-200 bg-white p-4 flex flex-wrap items-center justify-between gap-4 shadow-sm">
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                  className="inline-flex items-center justify-center gap-2 rounded-md bg-slate-900 px-4 py-2 text-[15px] font-medium text-slate-50 hover:bg-slate-900/90 shadow transition active:scale-[0.98]"
+                >
+                  <Icon name="plus" className="w-4 h-4" />
+                  <span>添加图片文件</span>
+                </button>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handleFileSelect}
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                />
+
+                <button
+                  onClick={() => folderInputRef.current && folderInputRef.current.click()}
+                  className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-4 py-2 text-[15px] font-medium text-slate-800 hover:bg-slate-100 shadow-sm transition active:scale-[0.98]"
+                >
+                  <Icon name="folder-plus" className="w-4 h-4 text-slate-600" />
+                  <span>添加文件夹</span>
+                </button>
+                <input
+                  type="file"
+                  ref={folderInputRef}
+                  onChange={handleFileSelect}
+                  webkitdirectory="true"
+                  directory="true"
+                  multiple
+                  className="hidden"
+                />
+
+                <div className="text-[15px] font-medium text-slate-500 ml-2">
+                  当前列表: <span className="text-slate-900 font-bold px-0.5">{totalCount}</span> 张
+                  {doneCount > 0 && (
+                    <span className="text-emerald-600 text-sm font-semibold ml-2">
+                      (已成功完成 {doneCount} 张)
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2.5 w-full sm:w-auto justify-end">
+                {totalCount > 0 && (
+                  <button
+                    onClick={handleClearAll}
+                    className="inline-flex items-center justify-center gap-1.5 rounded-md px-3 py-2 text-[15px] font-medium text-slate-500 hover:text-red-600 hover:bg-slate-100 transition"
+                  >
+                    <Icon name="trash-2" className="w-4 h-4" />
+                    清空列表
+                  </button>
+                )}
+
+                {doneCount > 0 && (
+                  <button
+                    onClick={handleDownloadAllZipFrontend}
+                    className="inline-flex items-center justify-center gap-2 rounded-md border border-slate-200 bg-white px-4 py-2 text-[15px] font-medium text-slate-900 shadow-sm hover:bg-slate-100 transition active:scale-[0.98]"
+                  >
+                    <Icon name="download" className="w-4 h-4" />
+                    <span>打包下载 (.zip)</span>
+                  </button>
+                )}
+
+                {/* 一键处理主按钮 */}
+                <button
+                  onClick={handleStartBatchProcess}
+                  disabled={waitingCount === 0 || isProcessing}
+                  className={`inline-flex h-10 min-w-[200px] items-center justify-center gap-2 rounded-md px-4 text-sm font-semibold transition shadow-sm ${waitingCount > 0 && !isProcessing
+                    ? 'bg-blue-600 text-white hover:bg-blue-500 active:scale-[0.98]'
+                    : 'bg-slate-100 text-slate-400 cursor-not-allowed border border-slate-200'
+                    }`}
+                >
+                  {isProcessing ? (
+                    <>
+                      <Icon name="loader-2" className="w-4 h-4 animate-spin" />
+                      <span>
+                        {progressInfo.total > 0
+                          ? (progressInfo.current >= progressInfo.total
+                            ? `完成 (${progressInfo.total}/${progressInfo.total})`
+                            : `处理中 (${progressInfo.current + 1}/${progressInfo.total})`)
+                          : '正在处理...'}
+                      </span>
+                    </>
+                  ) : (
+                    <>
+                      <Icon name="sparkles" className="w-4 h-4" />
+                      <span>一键处理 ({waitingCount})</span>
+                    </>
+                  )}
+                </button>
+
+              </div>
+            </div>
+
+            {/* 进度条显示在卡片下方 */}
+            {isProcessing && progressInfo.total > 0 && (
+              <div className="mt-4 p-4 bg-white rounded-lg border border-slate-200 shadow-sm">
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-medium text-slate-700">
+                    {progressInfo.current >= progressInfo.total ? '处理完成' : '处理中'}
+                  </span>
+                  <span className="text-sm text-slate-500">
+                    {progressInfo.current >= progressInfo.total
+                      ? `${progressInfo.total}/${progressInfo.total}`
+                      : `${progressInfo.current + 1}/${progressInfo.total}`}
+                  </span>
+                </div>
+                <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-blue-600 transition-all duration-300 ease-out rounded-full"
+                    style={{ width: `${(progressInfo.current / progressInfo.total) * 100}%` }}
+                  />
+                </div>
+                <div className="text-xs text-slate-500 mt-2 truncate">
+                  {progressInfo.message}
+                </div>
+              </div>
+            )}
+
+            {/* 图片网格展现区 - 响应式调整为更宽的大卡片 */}
+            {fileList.length === 0 ? (
+              <div
+                onClick={() => fileInputRef.current && fileInputRef.current.click()}
+                className="rounded-xl border border-dashed border-slate-300 bg-white hover:bg-slate-50/50 hover:border-slate-400 transition-all p-12 text-center cursor-pointer group flex flex-col items-center justify-center min-h-[320px]"
+              >
+                <div className="w-16 h-16 rounded-full bg-slate-100 flex items-center justify-center mb-4 group-hover:scale-110 transition duration-200 border border-slate-200">
+                  <Icon name="folder-up" className="w-8 h-8 text-slate-500" />
+                </div>
+                <h3 className="text-xl font-bold text-slate-900 mb-1">
+                  拖拽图片或文件夹到此处，或点击上传
+                </h3>
+                <p className="text-slate-400 text-sm">
+                  支持直接拖入整个文件夹（将自动解开并提取所有层级下的图片文件）
+                </p>
+              </div>
+            ) : (
+              <div className="max-h-[70vh] overflow-y-auto pr-1 custom-scroll">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5 gap-6">
+                  {fileList.map((item) => (
+                    <ImageCard
+                      key={item.id}
+                      item={item}
+                      onRemove={handleRemoveItem}
+                      formatFileSize={formatFileSize}
+                      targetFormat={targetFormat}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* 底部备案信息 */}
+          <footer className="w-full fixed bottom-0 left-0 w-full z-0 py-4 border-t border-slate-200 bg-white text-center text-xs text-slate-500 mt-8">
+            <div className="flex items-center justify-center gap-2">
+              <a href="http://www.beian.gov.cn/portal/registerSystemInfo?recordcode=44011202003613" target="_blank"
+                rel="noopener noreferrer" className="inline-flex items-center gap-1 hover:text-slate-800 transition-colors">
+                <span>粤公网安备44011202003613号</span>
+              </a>
+            </div>
+          </footer>
+        </div>
+      );
+    }
+
+    // ================= 3. ImageCard 子组件 =================
+    function ImageCard({ item, onRemove, formatFileSize, targetFormat }) {
+      const { file, originalPreview, processedUrl, status, errorMessage } = item;
+      const displayImg = processedUrl || originalPreview;
+
+      const renderBadge = () => {
+        switch (status) {
+          case 'waiting':
+            return (
+              <span className="inline-flex items-center rounded-md border border-slate-200 bg-slate-100/90 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-slate-700 shadow-sm">
+                待处理
+              </span>
+            );
+          case 'processing':
+            return (
+              <span className="inline-flex items-center gap-1.5 rounded-md border border-blue-200 bg-blue-50/90 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-blue-700 shadow-sm">
+                <span className="h-2 w-2 rounded-full bg-blue-600 animate-ping"></span>
+                处理中
+              </span>
+            );
+          case 'done':
+            return (
+              <span className="inline-flex items-center rounded-md border border-emerald-200 bg-emerald-50/90 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-emerald-700 shadow-sm">
+                成功
+              </span>
+            );
+          case 'error':
+            return (
+              <span
+                className="inline-flex items-center rounded-md border border-red-200 bg-red-50/90 backdrop-blur-sm px-2.5 py-1 text-xs font-semibold text-red-700 shadow-sm"
+                title={errorMessage}
+              >
+                失败
+              </span>
+            );
+          default:
+            return null;
+        }
+      };
+
+      const downloadName = `processed_${file.name.substring(0, file.name.lastIndexOf('.')) || file.name}.${targetFormat}`;
+
+      return (
+        <div className="rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm flex flex-col transition duration-200 hover:border-slate-400 hover:shadow-md group">
+          {/* 卡片图片预览区：放大容器高度为 h-64 */}
+          <div
+            className={`h-64 relative flex items-center justify-center p-4 border-b border-slate-100 ${processedUrl ? 'bg-checkerboard' : 'bg-slate-50/50'
+              }`}
+          >
+            <img
+              src={displayImg}
+              alt={file.name}
+              className="max-h-full max-w-full object-contain transition duration-200 group-hover:scale-105"
+            />
+
+            {/* 待处理/状态标签放左上角 */}
+            <div className="absolute top-3 left-3 z-10">{renderBadge()}</div>
+
+            {/* 卡片右上角删除按钮(处理中不显示) */}
+            {status !== 'processing' && (
+              <button
+                onClick={() => onRemove(item.id)}
+                className="absolute top-3 right-3 z-10 px-1.5 bg-white/90 hover:bg-red-50 text-slate-500 hover:text-red-600 rounded-md shadow-sm border border-slate-200 transition"
+                title="删除"
+              >
+                <Icon name="trash-2" className="w-4 h-4" />
+              </button>
+            )}
+          </div>
+
+          {/* 卡片底部操作信息 */}
+          <div className="p-4 flex-1 flex flex-col justify-between space-y-4">
+            <div>
+              <div className="text-base font-semibold text-slate-900 truncate" title={file.name}>
+                {file.name}
+              </div>
+              <div className="text-sm text-slate-400 mt-1">
+                大小: {formatFileSize(file.size)}
+              </div>
+            </div>
+
+            {processedUrl && (
+              <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                <a
+                  href={processedUrl}
+                  download={downloadName}
+                  className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-md border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-900 text-sm py-2 font-semibold transition"
+                >
+                  <Icon name="arrow-down" className="w-4 h-4" />
+                  下载图片
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+
+</html>
