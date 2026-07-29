@@ -164,6 +164,7 @@
       const savedConfig = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
 
       const [enableRemoveBg, setEnableRemoveBg] = useState(savedConfig.enableRemoveBg ?? true);
+      const [enableRemoveWatermark, setEnableRemoveWatermark] = useState(savedConfig.enableRemoveWatermark ?? false);
       const [targetFormat, setTargetFormat] = useState(savedConfig.targetFormat || 'png');
 
       // 图像质量 Tab 设置: qualityType ('preset' | 'custom')
@@ -191,6 +192,7 @@
           STORAGE_KEY,
           JSON.stringify({
             enableRemoveBg,
+            enableRemoveWatermark,
             targetFormat,
             qualityType,
             qualityPreset,
@@ -204,6 +206,7 @@
         );
       }, [
         enableRemoveBg,
+        enableRemoveWatermark,
         targetFormat,
         qualityType,
         qualityPreset,
@@ -409,6 +412,7 @@
         const formData = new FormData();
         waitingItems.forEach((item) => formData.append('images', item.file));
         formData.append('removeBg', enableRemoveBg ? 'true' : 'false');
+        formData.append('removeWatermark', enableRemoveWatermark ? 'true' : 'false');
         formData.append('format', targetFormat);
         formData.append('quality', getFinalQuality());
         formData.append('scale', getFinalScale());
@@ -594,8 +598,8 @@
               </div>
             </header>
 
-            {/* 核心配置区域 (一排 4 个卡片平铺布局) */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 items-stretch">
+            {/* 核心配置区域 (一排 5 个卡片平铺布局) */}
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4 items-stretch">
 
               {/* 卡片 1: AI 抠图 */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
@@ -629,7 +633,39 @@
                 </div>
               </div>
 
-              {/* 卡片 2: 导出格式 */}
+              {/* 卡片 2: 去除水印 */}
+              <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
+                <label className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
+                  <Icon name="droplet" className="w-4 h-4 text-blue-600" />
+                  去除水印
+                </label>
+                <div className="pt-2">
+                  <div
+                    onClick={() => setEnableRemoveWatermark(!enableRemoveWatermark)}
+                    className={`flex h-10 w-full cursor-pointer select-none items-center justify-between rounded-lg border px-3 py-1.5 text-sm font-medium transition ${enableRemoveWatermark
+                      ? 'border-slate-900 bg-slate-900 text-white shadow-sm'
+                      : 'border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100'
+                      }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <div
+                        className={`flex h-4 w-4 items-center justify-center rounded border transition-colors ${enableRemoveWatermark
+                          ? 'border-white bg-white text-slate-900'
+                          : 'border-slate-300 bg-white'
+                          }`}
+                      >
+                        {enableRemoveWatermark && <Icon name="check" className="w-3 h-3 stroke-[3]" />}
+                      </div>
+                      <span className="font-semibold">去除水印</span>
+                    </div>
+                    <span className={enableRemoveWatermark ? 'text-slate-300' : 'text-slate-400'}>
+                      {enableRemoveWatermark ? '开启' : '关闭'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 卡片 3: 导出格式 */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
                 <label className="text-base font-bold text-slate-900 flex items-center gap-2 border-b border-slate-100 pb-2">
                   <Icon name="refresh-cw" className="w-4 h-4 text-blue-600" />
@@ -662,7 +698,7 @@
                 </div>
               </div>
 
-              {/* 卡片 3: 图像质量 (做成 2 个选项卡 Tabs) */}
+              {/* 卡片 4: 图像质量 (做成 2 个选项卡 Tabs) */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <label className="text-base font-bold text-slate-900 flex items-center gap-2">
@@ -737,7 +773,7 @@
                 </div>
               </div>
 
-              {/* 卡片 4: 尺寸缩放 (做成 3 个选项卡 Tabs) */}
+              {/* 卡片 5: 尺寸缩放 (做成 3 个选项卡 Tabs) */}
               <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm flex flex-col justify-between hover:border-slate-300 transition min-h-[130px]">
                 <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                   <label className="text-base font-bold text-slate-900 flex items-center gap-2">
