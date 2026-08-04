@@ -215,7 +215,8 @@ async def remove_bg_batch(
     removeWatermark: str = Form("false"),
     format: str = Form("png"),
     quality: int = Form(100),
-    scale: str = Form("100")
+    scale: str = Form("100"),
+    scaleMode: str = Form("percent")
 ):
     try:
         if not images or len(images) == 0:
@@ -227,20 +228,27 @@ async def remove_bg_batch(
         target_format = format.lower()
         total_files = len(images)
 
-        # 解析 scale 参数：支持百分比（如 "80"）或像素尺寸（如 "1920x1080"）[cite: 1]
+        # 解析 scale 参数：依据 scaleMode 区分像素模式与百分比模式[cite: 1]
         scale_value = 100
         scale_width = None
         scale_height = None
-        if 'x' in scale:
-            parts = scale.split('x')
-            if parts[0] and parts[0] != 'auto':
-                scale_width = int(parts[0])
-            if len(parts) > 1 and parts[1] and parts[1] != 'auto':
-                scale_height = int(parts[1])
+        if scaleMode == "px":
+            # 像素尺寸模式（如 "1920x1080"、"autox1080"、"1920xauto"）[cite: 1]
+            if 'x' in scale:
+                parts = scale.split('x')
+                if parts[0] and parts[0] != 'auto':
+                    scale_width = int(parts[0])
+                if len(parts) > 1 and parts[1] and parts[1] != 'auto':
+                    scale_height = int(parts[1])
+            else:
+                # px 模式但未带 x，视为单值宽度等比缩放[cite: 1]
+                if scale.isdigit():
+                    scale_width = int(scale)
         else:
+            # 百分比模式（如 "80"）[cite: 1]
             scale_value = int(scale) if scale.isdigit() else 100
 
-        print(f"[日志] 收到 {total_files} 张图片任务 | 智能抠图: {is_remove_bg} | 去除水印: {is_remove_watermark} | 目标格式: {target_format} | 压缩质量: {quality}% | 缩放比例: {scale}% | 客户端: {clientId}")
+        print(f"[日志] 收到 {total_files} 张图片任务 | 智能抠图: {is_remove_bg} | 去除水印: {is_remove_watermark} | 目标格式: {target_format} | 压缩质量: {quality}% | 缩放模式: {scaleMode} | 缩放值: {scale} | 客户端: {clientId}")
 
         await send_progress(clientId, 0, total_files, "开始处理...")
 

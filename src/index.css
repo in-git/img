@@ -1,0 +1,136 @@
+@import 'antd/dist/reset.css';
+@import '@fontsource-variable/geist';
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* SF Pro / PingFang 苹果原生字体栈，全局基准 14px */
+body {
+  font-family:
+    -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display',
+    'PingFang SC', 'Helvetica Neue', Arial, sans-serif;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+  margin: 0;
+  padding: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+/* 苹果风格棋盘网格 */
+.bg-checkerboard {
+  background-size: 20px 20px;
+  background-position:
+    0 0,
+    0 10px,
+    10px -10px,
+    -10px 0px;
+  background-image:
+    linear-gradient(45deg, #f2f2f7 25%, transparent 25%),
+    linear-gradient(-45deg, #f2f2f7 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, #f2f2f7 75%),
+    linear-gradient(-45deg, transparent 75%, #f2f2f7 75%);
+}
+/* 苹果轻薄柔和阴影规范 */
+.apple-shadow-sm {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+}
+.apple-shadow-md {
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+}
+.apple-shadow-lg {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.10), 0 1px 3px rgba(0,0,0,0.05);
+}
+/* 卡片基础阴影 */
+.apple-card-shadow {
+  box-shadow: 0 2px 8px rgba(0,0,0,0.08), 0 1px 3px rgba(0,0,0,0.05);
+}
+/* 苹果交互过渡动画 0.2s ease */
+.apple-transition {
+  transition: all 0.2s ease;
+}
+/* hover 提亮 */
+.apple-hover:hover {
+  background-color: rgba(0, 0, 0, 0.03);
+}
+/* 点击下压透明度 0.88 */
+.apple-active:active {
+  opacity: 0.88;
+  transform: scale(0.98);
+}
+/* 隐藏数字输入框箭头 */
+input[type='number']::-webkit-inner-spin-button,
+input[type='number']::-webkit-outer-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type='number'] {
+  -moz-appearance: textfield;
+}
+/* 自定义苹果风格轻微滚动条 */
+.custom-scroll::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scroll::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 99px;
+}
+.custom-scroll::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* 等宽 Tabs 网格：把 nav-list 变成 3 等分 grid */
+.tabs-grid-3 .ant-tabs-nav,
+.tabs-grid-3 .ant-tabs-nav-wrap { width: 100%; }
+.tabs-grid-3 .ant-tabs-nav-list { display: grid; grid-template-columns: repeat(3, 1fr); width: 100%; }
+.tabs-grid-3 .ant-tabs-tab { justify-content: center; margin: 0; }
+.tabs-grid-3 .ant-tabs-ink-bar { display: none; }
+
+/* 等宽 Tabs 网格：2 等分 */
+.tabs-grid-2 .ant-tabs-nav,
+.tabs-grid-2 .ant-tabs-nav-wrap { width: 100%; }
+.tabs-grid-2 .ant-tabs-nav-list { display: grid; grid-template-columns: repeat(2, 1fr); width: 100%; }
+.tabs-grid-2 .ant-tabs-tab { justify-content: center; margin: 0; }
+.tabs-grid-2 .ant-tabs-ink-bar { display: none; }
+
+/* 苹果风格滑动条（range slider） */
+.custom-range {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 999px;
+  background: #e3e3e8;
+  outline: none;
+  cursor: pointer;
+}
+.custom-range::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+.custom-range::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+.custom-range::-webkit-slider-thumb:active {
+  transform: scale(1.15);
+}
+.custom-range::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  cursor: pointer;
+}
