@@ -67,7 +67,7 @@ const UploadPanel = forwardRef(function UploadPanel(
             >
               <PictureOutlined style={{ fontSize: 52, color: '#007AFF' }} />
             </div>
-            <p className="text-[64px] font-bold text-[#1D1D1F] mb-3 tracking-tight leading-[1.1]">
+            <p className="text-[28px] font-bold text-[#1D1D1F] mb-3 tracking-tight leading-[1.1]">
               批量处理图像
             </p>
             <p className="text-[18px] text-[#6E6E73] leading-[1.5]">
