@@ -328,6 +328,13 @@ async def remove_bg_batch(
                         mime_type = "image/webp"
                         img.save(output_io, format="WEBP", quality=quality)
 
+                    elif target_format == "ico":
+                        mime_type = "image/x-icon"
+                        # ICO 支持透明通道，统一转为 RGBA 以保证兼容性[cite: 1]
+                        if img.mode != "RGBA":
+                            img = img.convert("RGBA")
+                        img.save(output_io, format="ICO")
+
                     else:  # png
                         mime_type = "image/png"
                         # Python Pillow 针对 PNG compress_level 范围是 0~9[cite: 1]

@@ -5,6 +5,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>吴文龙的图片处理工具</title>
+  <link rel="icon" type="image/x-icon" href="./logo.ico" />
 
   <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -19,6 +20,8 @@
 
   <!-- Babel 在线解析 JSX -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <!-- logo -->
 
   <style>
     /* SF Pro / PingFang 苹果原生字体栈 */
@@ -237,6 +240,7 @@
         { label: 'PNG', value: 'png' },
         { label: 'JPEG', value: 'jpg' },
         { label: 'WEBP', value: 'webp' },
+        { label: 'ICO', value: 'ico' },
         { label: 'AVIF', value: 'avif' },
         { label: 'HEIC', value: 'heic' },
       ];
@@ -549,8 +553,8 @@
             {/* 顶栏苹果风格毛玻璃 Navigation */}
             <header className="sticky top-0 z-40 w-full backdrop-blur-md bg-white/70 border-b border-black/[0.05] apple-transition">
               <div className="max-w-[1200px] mx-auto px-6 h-12 flex items-center justify-between font-normal">
-                <div className="flex items-center gap-2 tracking-tight">
-                  <span className="font-semibold text-sm tracking-tight text-black">Studio</span>
+                <div className="flex items-center gap-2 ">
+                  <span className="font-semibold text-sm  text-black">Studio</span>
                   <span className="text-black/30">|</span>
                   <span className="text-black/60">智能图像轻处理系统</span>
                 </div>
@@ -562,16 +566,6 @@
               </div>
             </header>
 
-            {/* Apple 经典 Hero Banner 区域 */}
-            <section className="pt-16 pb-12 px-6 text-center max-w-[1200px] mx-auto mt-4 rounded-2xl " style={{ backgroundImage: 'url(./header.webp)', backgroundSize: 'cover', backgroundPosition: 'center', backgroundRepeat: 'no-repeat', }}>
-              <h1 className="text-4xl sm:text-5xl font-semibold tracking-tight text-white mb-3">
-                吴文龙的图片处理
-              </h1>
-              <p className="text-lg sm:text-xl font-normal text-gray-300 leading-relaxed max-w-[560px] mx-auto">
-                结合本地神经网络计算，实现像素级轮廓剪裁与自动化批处理。
-              </p>
-            </section>
-
             {/* 主操作台区域 */}
             <main className="max-w-[1200px] mx-auto px-6 space-y-8 pb-16">
 
@@ -582,7 +576,7 @@
                 <div className="w-20 h-20 rounded-full bg-white/80 shadow-2xl flex items-center justify-center mb-6">
                   <Icon name="arrow-down" className="w-8 h-8 text-[#0071e3]" />
                 </div>
-                <p className="text-2xl font-medium tracking-tight text-[#1d1d1f]">释放以导入图像</p>
+                <p className="text-2xl   text-[#1d1d1f]">释放以导入图像</p>
                 <p className="text-[#86868b] text-sm mt-1">支持批量拖入图像文件或层级文件夹</p>
               </div>
 
@@ -592,13 +586,13 @@
                 {/* 抠图 & 去水印集成卡片 */}
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
-                    <div className=" font-medium text-[#86868b] uppercase tracking-wider mb-3">智能擦除</div>
+                    <div className="  text-[#86868b]  mb-3">智能擦除</div>
                     <div className="space-y-2.5">
                       <div
                         onClick={config.toggleRemoveBg}
                         className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer apple-transition ${config.enableRemoveBg ? 'bg-[#f5f5f7]' : 'hover:bg-[#f5f5f7]/50'}`}
                       >
-                        <span className="text-sm font-medium text-[#1d1d1f]">去背景</span>
+                        <span className="text-sm  text-[#1d1d1f]">去背景</span>
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center apple-transition ${config.enableRemoveBg ? 'bg-[#0071e3] text-white' : 'border border-[#d2d2d7]'}`}>
                           {config.enableRemoveBg && <Icon name="check" className="w-3 h-3 stroke-[2.5]" />}
                         </div>
@@ -608,7 +602,7 @@
                         onClick={config.toggleRemoveWatermark}
                         className={`flex items-center justify-between p-2.5 rounded-xl cursor-pointer apple-transition ${config.enableRemoveWatermark ? 'bg-[#f5f5f7]' : 'hover:bg-[#f5f5f7]/50'}`}
                       >
-                        <span className="text-sm font-medium text-[#1d1d1f]">去豆包水印</span>
+                        <span className="text-sm  text-[#1d1d1f]">去豆包水印</span>
                         <div className={`w-5 h-5 rounded-full flex items-center justify-center apple-transition ${config.enableRemoveWatermark ? 'bg-[#0071e3] text-white' : 'border border-[#d2d2d7]'}`}>
                           {config.enableRemoveWatermark && <Icon name="check" className="w-3 h-3 stroke-[2.5]" />}
                         </div>
@@ -620,7 +614,7 @@
                 {/* 格式选择 */}
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
-                    <div className=" font-medium text-[#86868b] uppercase tracking-wider mb-3">导出格式</div>
+                    <div className="  text-[#86868b]  mb-3">导出格式</div>
                     <div className="grid grid-cols-3 gap-1.5 p-1 bg-[#f5f5f7] rounded-xl">
                       {formatList.map((item) => {
                         const isSelected = config.targetFormat === item.value;
@@ -628,7 +622,7 @@
                           <button
                             key={item.value}
                             onClick={() => setConfig('targetFormat', item.value)}
-                            className={`py-1.5 rounded-lg  font-medium apple-transition ${isSelected ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
+                            className={`py-1.5 rounded-lg   apple-transition ${isSelected ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
                           >
                             {item.label}
                           </button>
@@ -642,17 +636,17 @@
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">图片压缩</span>
+                      <span className="  text-[#86868b] ">图片压缩</span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => setConfig('qualityType', 'preset')}
-                          className={` px-2 py-0.5 rounded-md apple-transition ${config.qualityType === 'preset' ? 'bg-[#f5f5f7] text-[#1d1d1f] font-medium' : 'text-[#86868b]'}`}
+                          className={` px-2 py-0.5 rounded-md apple-transition ${config.qualityType === 'preset' ? 'bg-[#f5f5f7] text-[#1d1d1f] ' : 'text-[#86868b]'}`}
                         >
                           预设
                         </button>
                         <button
                           onClick={() => setConfig('qualityType', 'custom')}
-                          className={` px-2 py-0.5 rounded-md apple-transition ${config.qualityType === 'custom' ? 'bg-[#f5f5f7] text-[#1d1d1f] font-medium' : 'text-[#86868b]'}`}
+                          className={` px-2 py-0.5 rounded-md apple-transition ${config.qualityType === 'custom' ? 'bg-[#f5f5f7] text-[#1d1d1f] ' : 'text-[#86868b]'}`}
                         >
                           精准
                         </button>
@@ -669,7 +663,7 @@
                           <button
                             key={item.value}
                             onClick={() => setConfig('qualityPreset', item.value)}
-                            className={`py-1.5 rounded-lg  font-medium apple-transition ${config.qualityPreset === item.value ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
+                            className={`py-1.5 rounded-lg   apple-transition ${config.qualityPreset === item.value ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
                           >
                             {item.label}
                           </button>
@@ -684,7 +678,7 @@
                           value={config.customQuality}
                           onChange={(e) => setConfig('customQuality', e.target.value)}
                           placeholder="85"
-                          className="w-full bg-[#f5f5f7] border-0 rounded-xl px-3 py-1.5  font-medium text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
+                          className="w-full bg-[#f5f5f7] border-0 rounded-xl px-3 py-1.5   text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
                         />
                         <span className="absolute right-3 top-1.5  text-[#86868b]">%</span>
                       </div>
@@ -696,17 +690,17 @@
                 <div className="bg-white rounded-2xl p-5 border border-black/[0.03] apple-shadow-sm hover:apple-shadow-md apple-transition flex flex-col justify-between">
                   <div>
                     <div className="flex items-center justify-between mb-3">
-                      <span className=" font-medium text-[#86868b] uppercase tracking-wider">图片缩放</span>
+                      <span className="  text-[#86868b] ">图片缩放</span>
                       <div className="flex gap-1">
                         <button
                           onClick={() => setConfig('scaleType', 'preset')}
-                          className={` px-2 py-0.5 rounded-md apple-transition ${config.scaleType === 'preset' ? 'bg-[#f5f5f7] text-[#1d1d1f] font-medium' : 'text-[#86868b]'}`}
+                          className={` px-2 py-0.5 rounded-md apple-transition ${config.scaleType === 'preset' ? 'bg-[#f5f5f7] text-[#1d1d1f] ' : 'text-[#86868b]'}`}
                         >
                           比例
                         </button>
                         <button
                           onClick={() => setConfig('scaleType', 'custom_px')}
-                          className={` px-2 py-0.5 rounded-md apple-transition ${config.scaleType === 'custom_px' ? 'bg-[#f5f5f7] text-[#1d1d1f] font-medium' : 'text-[#86868b]'}`}
+                          className={` px-2 py-0.5 rounded-md apple-transition ${config.scaleType === 'custom_px' ? 'bg-[#f5f5f7] text-[#1d1d1f] ' : 'text-[#86868b]'}`}
                         >
                           像素
                         </button>
@@ -723,7 +717,7 @@
                           <button
                             key={item.value}
                             onClick={() => setConfig('scalePreset', item.value)}
-                            className={`py-1.5 rounded-lg  font-medium apple-transition ${config.scalePreset === item.value ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
+                            className={`py-1.5 rounded-lg   apple-transition ${config.scalePreset === item.value ? 'bg-white text-[#1d1d1f] apple-shadow-sm' : 'text-[#86868b] hover:text-[#1d1d1f]'}`}
                           >
                             {item.label}
                           </button>
@@ -736,7 +730,7 @@
                           value={config.customWidth}
                           onChange={(e) => setConfig('customWidth', e.target.value)}
                           placeholder="宽度"
-                          className="w-1/2 bg-[#f5f5f7] border-0 rounded-xl px-2.5 py-1.5  font-medium text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
+                          className="w-1/2 bg-[#f5f5f7] border-0 rounded-xl px-2.5 py-1.5   text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
                         />
                         <span className="text-[#86868b] ">×</span>
                         <input
@@ -744,7 +738,7 @@
                           value={config.customHeight}
                           onChange={(e) => setConfig('customHeight', e.target.value)}
                           placeholder="高度"
-                          className="w-1/2 bg-[#f5f5f7] border-0 rounded-xl px-2.5 py-1.5  font-medium text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
+                          className="w-1/2 bg-[#f5f5f7] border-0 rounded-xl px-2.5 py-1.5   text-[#1d1d1f] focus:ring-1 focus:ring-[#0071e3] outline-none"
                         />
                       </div>
                     )}
@@ -758,7 +752,7 @@
                 <div className="flex items-center gap-3">
                   <button
                     onClick={() => fileInputRef.current && fileInputRef.current.click()}
-                    className="bg-[#0071e3] hover:bg-[#0077ed] text-white  font-medium px-4 py-2 rounded-full apple-transition flex items-center gap-1.5 shadow-sm active:scale-98"
+                    className="bg-[#0071e3] hover:bg-[#0077ed] text-white   px-4 py-2 rounded-full apple-transition flex items-center gap-1.5 shadow-sm active:scale-98"
                   >
                     <Icon name="plus" className="w-3.5 h-3.5" />
                     <span>选择图像</span>
@@ -774,7 +768,7 @@
 
                   <button
                     onClick={() => folderInputRef.current && folderInputRef.current.click()}
-                    className="bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f]  font-medium px-4 py-2 rounded-full apple-transition flex items-center gap-1.5 active:scale-98"
+                    className="bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f]   px-4 py-2 rounded-full apple-transition flex items-center gap-1.5 active:scale-98"
                   >
                     <Icon name="folder" className="w-3.5 h-3.5 text-[#86868b]" />
                     <span>选择文件夹</span>
@@ -791,7 +785,7 @@
 
                   {totalCount > 0 && (
                     <span className=" text-[#86868b] ml-2">
-                      已选中 <span className="text-[#1d1d1f] font-medium">{totalCount}</span> 项
+                      已选中 <span className="text-[#1d1d1f] ">{totalCount}</span> 项
                     </span>
                   )}
                 </div>
@@ -809,7 +803,7 @@
                   {fileList.length > 0 && !isProcessing && (
                     <button
                       onClick={handleStartBatchProcess}
-                      className="bg-[#1d1d1f] hover:bg-black text-white font-medium px-5 py-2 rounded-full apple-transition flex items-center gap-2 shadow-sm active:scale-98"
+                      className="bg-[#1d1d1f] hover:bg-black text-white  px-5 py-2 rounded-full apple-transition flex items-center gap-2 shadow-sm active:scale-98"
                     >
                       <span>开始渲染</span>
                     </button>
@@ -818,7 +812,7 @@
                   {isProcessing && (
                     <button
                       disabled
-                      className="bg-[#1d1d1f] text-white font-medium px-5 py-2 rounded-full apple-transition flex items-center gap-2 cursor-not-allowed"
+                      className="bg-[#1d1d1f] text-white  px-5 py-2 rounded-full apple-transition flex items-center gap-2 cursor-not-allowed"
                     >
                       <Icon name="loader-2" className="w-3.5 h-3.5 animate-spin" />
                       <span>处理中...</span>
@@ -836,7 +830,7 @@
                   <div className="w-14 h-14 rounded-full bg-[#f5f5f7] flex items-center justify-center mb-4">
                     <Icon name="image" className="w-6 h-6 text-[#86868b]" />
                   </div>
-                  <p className="text-base font-medium text-[#1d1d1f] mb-1">点按或拖拽项目至此</p>
+                  <p className="text-base  text-[#1d1d1f] mb-1">点按或拖拽项目至此</p>
                   <p className=" text-[#86868b]">支持单个文件、多图选择或完整目录拖入</p>
                 </div>
               ) : (
@@ -908,7 +902,7 @@
                           console.error('停止失败:', e);
                         }
                       }}
-                      className="w-14 h-7 rounded-full flex items-center justify-center apple-transition bg-red-500 hover:bg-red-600 text-white text-xs font-medium cursor-pointer"
+                      className="w-14 h-7 rounded-full flex items-center justify-center apple-transition bg-red-500 hover:bg-red-600 text-white text-xs  cursor-pointer"
                       title="停止渲染"
                     >
                       停止
@@ -917,7 +911,7 @@
                     <button
                       onClick={() => setShowProgressModal(false)}
                       disabled={!isAllTasksSuccess && !isStoppedRef.current}
-                      className={`w-14 h-7 rounded-full flex items-center justify-center apple-transition text-xs font-medium ${isAllTasksSuccess || isStoppedRef.current
+                      className={`w-14 h-7 rounded-full flex items-center justify-center apple-transition text-xs  ${isAllTasksSuccess || isStoppedRef.current
                         ? 'bg-[#f5f5f7] hover:bg-[#e8e8ed] text-[#1d1d1f] cursor-pointer'
                         : 'bg-[#f5f5f7]/50 text-[#c7c7cc] cursor-not-allowed'
                         }`}
@@ -934,7 +928,7 @@
                     <span className="text-[#86868b] truncate max-w-[240px]">
                       {progressInfo.message || (isAllTasksCompleted ? '处理已结束' : '正在准备任务队列...')}
                     </span>
-                    <span className="font-medium text-[#1d1d1f] ml-2">
+                    <span className=" text-[#1d1d1f] ml-2">
                       {progressInfo.total > 0 ? progressInfo.current : 0} / {progressInfo.total > 0 ? progressInfo.total : modalTasks.length}
                     </span>
                   </div>
@@ -958,7 +952,7 @@
                       {/* 左侧：文件名 */}
                       <div className="flex items-center gap-2 truncate mr-3">
                         <Icon name="file-image" className="w-4 h-4 text-[#86868b] flex-shrink-0" />
-                        <span className="font-medium text-[#1d1d1f] truncate" title={task.file.name}>
+                        <span className=" text-[#1d1d1f] truncate" title={task.file.name}>
                           {task.file.name}
                         </span>
                       </div>
@@ -966,24 +960,24 @@
                       {/* 右侧：状态指示 */}
                       <div className="flex-shrink-0 flex items-center gap-1.5">
                         {task.status === 'waiting' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#1d1d1f]/5 text-[#86868b]">
+                          <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#1d1d1f]/5 text-[#86868b]">
                             等待中
                           </span>
                         )}
                         {task.status === 'processing' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#0071e3]/10 text-[#0071e3] flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#0071e3]/10 text-[#0071e3] flex items-center gap-1">
                             <Icon name="loader-2" className="w-3 h-3 animate-spin" />
                             处理中
                           </span>
                         )}
                         {task.status === 'done' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#34c759]/10 text-[#34c759] flex items-center gap-1">
+                          <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#34c759]/10 text-[#34c759] flex items-center gap-1">
                             <Icon name="check" className="w-3 h-3" />
                             成功
                           </span>
                         )}
                         {task.status === 'error' && (
-                          <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#ff3b30]/10 text-[#ff3b30] flex items-center gap-1" title={task.errorMessage}>
+                          <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#ff3b30]/10 text-[#ff3b30] flex items-center gap-1" title={task.errorMessage}>
                             <Icon name="alert-circle" className="w-3 h-3" />
                             失败
                           </span>
@@ -998,7 +992,7 @@
                   <button
                     onClick={() => setShowProgressModal(false)}
                     disabled={!isAllTasksSuccess}
-                    className={`w-full py-2.5 rounded-xl font-medium text-sm apple-transition ${isAllTasksSuccess
+                    className={`w-full py-2.5 rounded-xl  text-sm apple-transition ${isAllTasksSuccess
                       ? 'bg-[#0071e3] hover:bg-[#0077ed] text-white shadow-sm cursor-pointer'
                       : 'bg-[#f5f5f7] text-[#c7c7cc] cursor-not-allowed'
                       }`}
@@ -1042,19 +1036,19 @@
           {/* 状态指示极简 Badge */}
           <div className="absolute top-2.5 left-2.5 z-10">
             {status === 'waiting' && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-black/5 backdrop-blur-md text-[#1d1d1f]">就绪</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px]  bg-black/5 backdrop-blur-md text-[#1d1d1f]">就绪</span>
             )}
             {status === 'processing' && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#0071e3]/10 backdrop-blur-md text-[#0071e3] flex items-center gap-1">
+              <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#0071e3]/10 backdrop-blur-md text-[#0071e3] flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-[#0071e3] animate-pulse"></span>
                 计算中
               </span>
             )}
             {status === 'done' && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#34c759]/10 backdrop-blur-md text-[#34c759]">完成</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#34c759]/10 backdrop-blur-md text-[#34c759]">完成</span>
             )}
             {status === 'error' && (
-              <span className="px-2 py-0.5 rounded-full text-[10px] font-medium bg-[#ff3b30]/10 backdrop-blur-md text-[#ff3b30]" title={errorMessage}>异常</span>
+              <span className="px-2 py-0.5 rounded-full text-[10px]  bg-[#ff3b30]/10 backdrop-blur-md text-[#ff3b30]" title={errorMessage}>异常</span>
             )}
           </div>
 
@@ -1080,7 +1074,7 @@
           {/* 底部详情 */}
           <div className="p-3 bg-white flex flex-col justify-between flex-1 space-y-2">
             <div>
-              <div className=" font-medium text-[#1d1d1f] truncate" title={file.name}>
+              <div className="  text-[#1d1d1f] truncate" title={file.name}>
                 {file.name}
               </div>
               <div className="text-[11px] text-[#86868b] mt-0.5">
@@ -1092,7 +1086,7 @@
               <a
                 href={processedUrl}
                 download={downloadName}
-                className="w-full bg-[#f5f5f7] hover:bg-[#0071e3] text-[#1d1d1f] hover:text-white rounded-xl py-1.5  font-medium apple-transition flex items-center justify-center gap-1 mt-1"
+                className="w-full bg-[#f5f5f7] hover:bg-[#0071e3] text-[#1d1d1f] hover:text-white rounded-xl py-1.5   apple-transition flex items-center justify-center gap-1 mt-1"
               >
                 <Icon name="arrow-down" className="w-3 h-3" />
                 <span>保存</span>
